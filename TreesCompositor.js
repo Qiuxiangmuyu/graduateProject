@@ -3,16 +3,18 @@
  */
 function TreesCompositor()
 {
-    var m_initRadius=0.162239;
-    var m_initLength=4.81554;
-    var numChildPerComponent=5;
+//    var m_initRadius=0.162239;
+//    var m_initLength=4.81554;
+    var m_initRadius=1.62239;
+    var m_initLength=48.1554;
+    var numChildPerComponent=7;
     //每个父亲有五个孩子
-    var numChildPerParent=5;
+    var numChildPerParent=7;
     var numResamplePoints=15;
 
     var rule0=rule.Layer0;
     var componentManager0=new LayerComponentManager(rule0);
-    componentManager0.GenerateComponentsFor0(numChildPerComponent,m_initRadius,m_initLength);
+    componentManager0.GenerateComponentsFor0(1,m_initRadius,m_initLength);
 //    componentManager0.PrintLimbComponentFor0();
 
     var rule1=rule.Layer1;
@@ -25,37 +27,279 @@ function TreesCompositor()
     componentManager2.GenerateComponents(numChildPerComponent,componentManager1);
 //    componentManager2.PrintLimbComponent();
 
-    var rule3=rule.Layer3;
-    var componentManager3=new LayerComponentManager(rule3);
+//    var rule3=rule.Layer3;
+//    var componentManager3=new LayerComponentManager(rule3);
 //    componentManager3.GenerateComponents(numChildPerComponent,componentManager2);
 //    componentManager3.PrintLimbComponent();
-
-
-    var scene = new THREE.Scene();
-    var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
-    camera.position.y = 2;
-    camera.position.z = 8;
-    camera.lookAt(scene.position);
 
     var renderer = new THREE.WebGLRenderer();
     renderer.setSize( window.innerWidth, window.innerHeight );
     renderer.shadowMapEnabled = true;
-    renderer.setClearColor(new THREE.Color(0xEEEEEE, 1.0));
-    document.getElementById("WebGL-output").appendChild(renderer.domElement);
+    renderer.setClearColor(new THREE.Color(0x000000, 1.0));
+    document.getElementById("WEB-GL").appendChild(renderer.domElement);
 
-    var ambiColor="#0c0c0c";
-    var ambientLight=new THREE.AmbientLight(ambiColor);
-    scene.add(ambientLight);
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 1, 1000 );
+    camera.position.y = 0;
+    camera.position.z = 0;
+    camera.position.x = 0;
+    camera.lookAt(camera.position);
+
+//////////添加控制器
+    var controls;
+    var raycaster;
+    var blocker = document.getElementById( 'blocker' );
+    var instructions = document.getElementById( 'instructions' );
+    var controlsEnabled = false;
+    var moveForward = false;
+    var moveBackward = false;
+    var moveLeft = false;
+    var moveRight = false;
+    var canJump = false;
+    var prevTime = performance.now();
+    var velocity = new THREE.Vector3();
+
+    var havePointerLock = 'pointerLockElement' in document || 'mozPointerLockElement' in document || 'webkitPointerLockElement' in document;
+
+    if ( havePointerLock ) {
+
+        var element = document.body;
+
+        var pointerlockchange = function ( event ) {
+
+            if ( document.pointerLockElement === element || document.mozPointerLockElement === element || document.webkitPointerLockElement === element ) {
+
+                controlsEnabled = true;
+                controls.enabled = true;
+
+                blocker.style.display = 'none';
+
+            } else {
+
+                controls.enabled = false;
+
+                blocker.style.display = '-webkit-box';
+                blocker.style.display = '-moz-box';
+                blocker.style.display = 'box';
+
+                instructions.style.display = '';
+
+            }
+
+        };
+
+        var pointerlockerror = function ( event ) {
+
+            instructions.style.display = '';
+
+        };
+
+        // Hook pointer lock state change events
+        document.addEventListener( 'pointerlockchange', pointerlockchange, false );
+        document.addEventListener( 'mozpointerlockchange', pointerlockchange, false );
+        document.addEventListener( 'webkitpointerlockchange', pointerlockchange, false );
+
+        document.addEventListener( 'pointerlockerror', pointerlockerror, false );
+        document.addEventListener( 'mozpointerlockerror', pointerlockerror, false );
+        document.addEventListener( 'webkitpointerlockerror', pointerlockerror, false );
+
+        instructions.addEventListener( 'click', function ( event ) {
+
+            instructions.style.display = 'none';
+
+            // Ask the browser to lock the pointer
+            element.requestPointerLock = element.requestPointerLock || element.mozRequestPointerLock || element.webkitRequestPointerLock;
+
+            if ( /Firefox/i.test( navigator.userAgent ) ) {
+
+                var fullscreenchange = function ( event ) {
+
+                    if ( document.fullscreenElement === element || document.mozFullscreenElement === element || document.mozFullScreenElement === element ) {
+
+                        document.removeEventListener( 'fullscreenchange', fullscreenchange );
+                        document.removeEventListener( 'mozfullscreenchange', fullscreenchange );
+
+                        element.requestPointerLock();
+                    }
+
+                };
+
+                document.addEventListener( 'fullscreenchange', fullscreenchange, false );
+                document.addEventListener( 'mozfullscreenchange', fullscreenchange, false );
+
+                element.requestFullscreen = element.requestFullscreen || element.mozRequestFullscreen || element.mozRequestFullScreen || element.webkitRequestFullscreen;
+
+                element.requestFullscreen();
+
+            } else {
+
+                element.requestPointerLock();
+
+            }
+
+        }, false );
+
+    } else {
+
+        instructions.innerHTML = 'Your browser doesn\'t seem to support Pointer Lock API';
+
+    }
+
+    init();
+    animate();
+
+
+    function init() {
+
+
+        controls = new THREE.PointerLockControls( camera );
+        scene.add( controls.getObject() );
+
+        var onKeyDown = function ( event ) {
+
+            switch ( event.keyCode ) {
+
+                case 38: // up
+                case 87: // w
+                    moveForward = true;
+                    break;
+
+                case 37: // left
+                case 65: // a
+                    moveLeft = true; break;
+
+                case 40: // down
+                case 83: // s
+                    moveBackward = true;
+                    break;
+
+                case 39: // right
+                case 68: // d
+                    moveRight = true;
+                    break;
+
+                case 32: // space
+                    if ( canJump === true ) velocity.y += 350;
+                    canJump = false;
+                    break;
+
+            }
+
+        };
+
+        var onKeyUp = function ( event ) {
+
+            switch( event.keyCode ) {
+
+                case 38: // up
+                case 87: // w
+                    moveForward = false;
+                    break;
+
+                case 37: // left
+                case 65: // a
+                    moveLeft = false;
+                    break;
+
+                case 40: // down
+                case 83: // s
+                    moveBackward = false;
+                    break;
+
+                case 39: // right
+                case 68: // d
+                    moveRight = false;
+                    break;
+
+            }
+
+        };
+
+        document.addEventListener( 'keydown', onKeyDown, false );
+        document.addEventListener( 'keyup', onKeyUp, false );
+
+        raycaster = new THREE.Raycaster( new THREE.Vector3(), new THREE.Vector3( 0, - 1, 0 ), 0, 10 );
+
+    }
+
+
+    function animate() {
+
+        requestAnimationFrame( animate );
+
+        if ( controlsEnabled ) {
+            raycaster.ray.origin.copy( controls.getObject().position );
+            raycaster.ray.origin.y -= 10;
+
+
+            var time = performance.now();
+            var delta = ( time - prevTime ) / 1000;
+
+            velocity.x -= velocity.x * 10.0 * delta;
+            velocity.z -= velocity.z * 10.0 * delta;
+
+            velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+
+            if ( moveForward ) velocity.z -= 200.0 * delta;
+            if ( moveBackward ) velocity.z += 200.0 * delta;
+
+            if ( moveLeft ) velocity.x -= 200.0 * delta;
+            if ( moveRight ) velocity.x += 200.0 * delta;
+
+
+            controls.getObject().translateX( 1*velocity.x * delta );
+            controls.getObject().translateY( 1*velocity.y * delta );
+            controls.getObject().translateZ( 1*velocity.z * delta );
+
+            if ( controls.getObject().position.y < 10 ) {
+
+                velocity.y = 0;
+                controls.getObject().position.y = 10;
+
+                canJump = true;
+
+            }
+
+            prevTime = time;
+
+        }
+
+        renderer.render( scene, camera );
+
+    }
+///////
 
     // add spotlight for the shadows
-    var spotLight = new THREE.SpotLight(0xffffff);
-    spotLight.position.set(-100, 100, -1);
-    spotLight.castShadow = true;
-    scene.add(spotLight);
+    var spotLight0 = new THREE.SpotLight(0xaaaaaa);
+    spotLight0.position.set(-200, 400, 200);
+    spotLight0.castShadow = true;
+    scene.add(spotLight0);
 
-    var planeGeometry=new THREE.PlaneGeometry(100,100,1,1);
-    var planeMaterial = new THREE.MeshLambertMaterial({color: 0x77dd99});
-    var plane=new THREE.Mesh(planeGeometry,planeMaterial);
+    var directionalLight = new THREE.DirectionalLight( 0xeeeeee, 1 );
+    directionalLight.position.set( 200, 400, 200 );
+    directionalLight.castShadow = true;
+    scene.add( directionalLight );
+
+    var directionalLight1 = new THREE.DirectionalLight( 0xeeeeee, 1 );
+    directionalLight1.position.set( 200, 400, -200 );
+    directionalLight1.castShadow = true;
+    scene.add( directionalLight1 );
+
+    var directionalLight2 = new THREE.DirectionalLight( 0xffffff, 1 );
+    directionalLight2.position.set( 180, -400, -180 );
+    directionalLight2.castShadow = true;
+    scene.add( directionalLight2 );
+
+    var planeGeometry=new THREE.PlaneGeometry(1000,1000,10,10);
+    var map = new THREE.TextureLoader().load( 'imgs/grassland.jpg' );
+    map.wrapS = map.wrapT = THREE.RepeatWrapping;
+    map.repeat.set(20,20);
+//    map.anisotropy = 5;
+    var material = new THREE.MeshLambertMaterial( { map: map } );
+    var plane = new THREE.Mesh( planeGeometry, material );
+
+//    var planeMaterial = new THREE.MeshLambertMaterial({color: 0x77dd99});
+//    var plane=new THREE.Mesh(planeGeometry,planeMaterial);
     plane.receiveShadow = true;
     // rotate and position the plane
     plane.rotation.x = -0.5 * Math.PI;
@@ -64,43 +308,158 @@ function TreesCompositor()
     plane.position.z = 0;
     scene.add(plane);
 
+
+    var planeGeometry1=new THREE.PlaneGeometry(400,400,10,10);
+    var map1 = new THREE.TextureLoader().load( 'imgs/bluesky_front1.jpg' );
+    var material1 = new THREE.MeshLambertMaterial( { map: map1 } );
+//    var planeMaterial1 = new THREE.MeshLambertMaterial({color: 0x77dd99});
+    var plane1=new THREE.Mesh(planeGeometry1,material1);
+    plane1.receiveShadow = true;
+    // rotate and position the plane
+    plane1.position.x = 0;
+    plane1.position.y = 200;
+    plane1.position.z = -200;
+    scene.add(plane1);
+
+    var planeGeometry2=new THREE.PlaneGeometry(400,400,10,10);
+    var map2 = new THREE.TextureLoader().load( 'imgs/bluesky_left1.jpg' );
+    var material2 = new THREE.MeshLambertMaterial( { map: map2 } );
+//    var planeMaterial2 = new THREE.MeshLambertMaterial({color: 0x77dd99});
+    var plane2=new THREE.Mesh(planeGeometry2,material2);
+    plane2.receiveShadow = true;
+    // rotate and position the plane
+    plane2.rotation.y = 0.5 * Math.PI;
+    plane2.position.x = -200;
+    plane2.position.y = 200;
+    plane2.position.z = 0;
+    scene.add(plane2);
+
+    var planeGeometry3=new THREE.PlaneGeometry(400,400,10,10);
+    var map3 = new THREE.TextureLoader().load( 'imgs/bluesky_back1.jpg' );
+    var material3 = new THREE.MeshLambertMaterial( { map: map3 } );
+//    var planeMaterial3 = new THREE.MeshLambertMaterial({color: 0x77dd99});
+    var plane3=new THREE.Mesh(planeGeometry3,material3);
+    plane3.receiveShadow = true;
+    // rotate and position the plane
+    plane3.rotation.y = 1 * Math.PI;
+    plane3.position.x = 0;
+    plane3.position.y = 200;
+    plane3.position.z = 200;
+    scene.add(plane3);
+
+    var planeGeometry4=new THREE.PlaneGeometry(400,400,10,10);
+    var map4 = new THREE.TextureLoader().load( 'imgs/bluesky_right1.jpg' );
+    var material4 = new THREE.MeshLambertMaterial( { map: map4 } );
+//    var planeMaterial4 = new THREE.MeshLambertMaterial({color: 0x77dd99});
+    var plane4=new THREE.Mesh(planeGeometry4,material4);
+    plane4.receiveShadow = true;
+    // rotate and position the plane
+    plane4.rotation.y = 1.5 * Math.PI;
+    plane4.position.x = 200;
+    plane4.position.y = 200;
+    plane4.position.z = 0;
+    scene.add(plane4);
+
+    var planeGeometry5=new THREE.PlaneGeometry(400,400,10,10);
+    var map5 = new THREE.TextureLoader().load( 'imgs/bluesky_top.JPG' );
+    var material5 = new THREE.MeshLambertMaterial( { map: map5 } );
+//    var planeMaterial5 = new THREE.MeshLambertMaterial({color: 0x77dd99});
+    var plane4=new THREE.Mesh(planeGeometry5,material5);
+    plane4.receiveShadow = true;
+    // rotate and position the plane
+    plane4.rotation.x = 0.5 * Math.PI;
+    plane4.position.x = 0;
+    plane4.position.y = 200;
+    plane4.position.z = 0;
+    scene.add(plane4);
+
+
+    var map = new THREE.TextureLoader().load( 'imgs/bark1.jpg' );
+    var material = new THREE.MeshLambertMaterial( { map: map } );
+    var geometry1 = new THREE.BoxBufferGeometry( 10, 10, 10 );
+    var mesh = new THREE.Mesh( geometry1, material );
+    mesh.position.z=-30;
+    mesh.position.y=5;
+    mesh.position.x=10;
+    scene.add( mesh );
+
 //渲染整棵树
     var TreeCompositor=function()
     {
-        CompositorOfLayer0();
+        var treePosition0=
+        {
+            x:-50,
+            y:0,
+            z:-50
+        };
+
+        var treePosition=[];
+        for(var i=0;i!=2;i++)
+        {
+            for(var j=0;j!=3;j++)
+            {
+                var temp=
+                {
+                    x:0,
+                    y:0,
+                    z:0
+                };
+                temp.x=treePosition0.x+j*50;
+                temp.y=treePosition0.y;
+                temp.z=treePosition0.z+i*100;
+                treePosition.push(temp);
+            }
+        }
+
+        var componentIndex=Math.round(Math.random()*(numChildPerComponent-1));
+        for(var i=0;i!=6;i++)
+        {
+            CompositorOfLayer0(treePosition[i],0,(2*Math.PI)*(Math.random()));
+        }
+//        CompositorOfLayer0(treePosition0,componentIndex);
+//        CompositorOfLayer0(treePosition1,componentIndex);
+//        CompositorOfLayer0(treePosition2,componentIndex);
+
+
     }
 
 //渲染第0层的某个枝干
-    var CompositorOfLayer0=function()
+    var CompositorOfLayer0=function(position,componentIndex,rotation)
     {
-        var limb=new THREE.Object3D();
+        var limb0=new THREE.Object3D();
         for(var i=0;i!=numResamplePoints-1;i++)
         {
             //渲染枝条第一段
+            var componentIndex=componentIndex;
             var geometry = new THREE.Geometry();
-            var vertices=GetVertices(componentManager0,0,i);
+            var vertices=GetVertices(componentManager0,componentIndex,i);
             var faces=GetFaces();
             geometry.vertices=vertices;
             geometry.faces=faces;
-            //geometry.computeBoundingSphere();
+            geometry.computeBoundingSphere();
             geometry.computeFaceNormals();
             //       var material = new THREE.MeshLambertMaterial({color: 0x00ff00});
             var materials = [
                 new THREE.MeshLambertMaterial({opacity: 0.6, color: 0x44bb44, transparent: true}),
-                new THREE.MeshBasicMaterial({color: 0x000000, wireframe: true})
-
+                new THREE.MeshBasicMaterial({color: 0x000000, wireframe: true}),
             ];
-            var tube = THREE.SceneUtils.createMultiMaterialObject(geometry, materials);
+
+           var tube = THREE.SceneUtils.createMultiMaterialObject(geometry, materials);
             tube.children.forEach(function (e) {
-//            e.castShadow = true
+//              e.castShadow = true
             });
-            limb.add(tube);
+            limb0.add(tube);
         }
 
-        scene.add(limb);
-        renderer.render(scene, camera);
+        limb0.position.x=position.x;
+        limb0.position.y=position.y;
+        limb0.position.z=position.z;
 
-        var fiveBranchRatio=GetFiveBranchRatio();
+        limb0.rotation.y=rotation;
+
+//        limb0.castShadow=true;
+
+        var fiveBranchRatio=GetBranchRatio();
         var pathRatio=[];
 
         for(var i=0;i!=numChildPerParent;i++)
@@ -116,18 +475,22 @@ function TreesCompositor()
 
             var position=
             {
-                x:GetInterpolationX(componentManager0,0,fiveBranchRatio[i]),
-                y:GetInterpolationY(componentManager0,0,fiveBranchRatio[i]),
-                z:GetInterpolationZ(componentManager0,0,fiveBranchRatio[i])
+                x:GetInterpolationX(componentManager0,componentIndex,fiveBranchRatio[i]),
+                y:GetInterpolationY(componentManager0,componentIndex,fiveBranchRatio[i]),
+                z:GetInterpolationZ(componentManager0,componentIndex,fiveBranchRatio[i])
             }
-            CompositorOfLayer1(position,fiveBranchRatio[i],bestLimb,i,pathRatioX);
+            CompositorOfLayer1(position,fiveBranchRatio[i],bestLimb,i,pathRatioX,limb0);
 //            document.write(bestLimb.m_vRadius[i]+"</br>");
 //            document.write(position.x+" "+position.y+" "+position.z+"</br>");
         }
+        scene.add(limb0);
+        renderer.render(scene, camera);
+
+
     }
 
 //渲染第1层的某个枝干
-    var CompositorOfLayer1=function(position,ratio,limbComponent,index,pathRatioX)
+    var CompositorOfLayer1=function(position,ratio,limbComponent,index,pathRatioX,limb0)
     {
         var limb1=new THREE.Object3D();
         for(var i=0;i!=numResamplePoints-1;i++)
@@ -146,17 +509,16 @@ function TreesCompositor()
                 new THREE.MeshBasicMaterial({color: 0x000000, wireframe: true})
 
             ];
+
             var tube1 = THREE.SceneUtils.createMultiMaterialObject(geometry1, materials1);
             tube1.children.forEach(function (e) {
-//            e.castShadow = true
+//              e.castShadow = true
             });
             limb1.add(tube1);
         }
 
-
-
         var pathRatioX=pathRatioX;
-        var fiveBranchRatio=GetFiveBranchRatio();
+        var fiveBranchRatio=GetBranchRatio();
         for(var i=0;i!=numChildPerParent;i++)
         {
             var pathRatioXX=[];
@@ -184,9 +546,9 @@ function TreesCompositor()
         limb1.position.z=position.z;
 
         limb1.rotation.z=limbComponent.m_betaAngle*(Math.PI/180);
-        limb1.rotation.y=2*Math.PI*(index/numChildPerParent);
-        scene.add(limb1);
-        renderer.render(scene, camera);
+        limb1.rotation.y=2*Math.PI*(index/numChildPerParent)+(Math.random()-0.5)*0.1*Math.PI;
+//        limb1.rotation.y=2*Math.PI*Math.random();
+        limb0.add(limb1);
     }
 
 //渲染第2层的某个枝干
@@ -209,9 +571,10 @@ function TreesCompositor()
                 new THREE.MeshBasicMaterial({color: 0x000000, wireframe: true})
 
             ];
+
             var tube2 = THREE.SceneUtils.createMultiMaterialObject(geometry2, materials2);
             tube2.children.forEach(function (e) {
-//            e.castShadow = true
+  //            e.castShadow = true
             });
             limb2.add(tube2);
         }
@@ -220,7 +583,7 @@ function TreesCompositor()
         limb2.position.z=position.z;
 
         limb2.rotation.z=limbComponent.m_betaAngle*(Math.PI/180);
-        limb2.rotation.y=2*Math.PI*(index/numChildPerParent);
+        limb2.rotation.y=2*Math.PI*(index/numChildPerParent)+(Math.random()-0.5)*0.2*Math.PI;
 
         limb1.add(limb2);
 
@@ -237,6 +600,7 @@ function TreesCompositor()
     }
 
     TreeCompositor();
+
 }
 
 
@@ -261,6 +625,31 @@ var GetFiveBranchRatio=function()
     ramificationRatio[2] = actualStartRatio + 0.4*(actualEndRatio - actualStartRatio)+0.15*(actualEndRatio - actualStartRatio)* Math.random();
     ramificationRatio[3] = actualStartRatio + 0.55*(actualEndRatio - actualStartRatio)+0.15*(actualEndRatio - actualStartRatio)* Math.random();
     ramificationRatio[4] = actualStartRatio + 0.7*(actualEndRatio - actualStartRatio)+0.1*(actualEndRatio - actualStartRatio)* Math.random();
+
+    return ramificationRatio;
+}
+
+var GetBranchRatio=function()
+{
+    var ramificationRatio=new Array(5);
+
+    var startRatio = rule.Layer0.m_startRamificationRatio;
+    var endRatio = rule.Layer0.m_endRamificationRatio;
+
+    var actualStartRatio = getNumberInNormalDistribution(startRatio.mean, startRatio.var);
+    var actualEndRatio = getNumberInNormalDistribution(endRatio.mean, startRatio.var);
+    if (actualEndRatio > 1)
+    {
+        actualEndRatio = 2 - actualEndRatio;
+    }
+
+    ramificationRatio[0] = actualStartRatio + 0.2*(actualEndRatio - actualStartRatio)+0.1*(actualEndRatio - actualStartRatio)* Math.random();
+    ramificationRatio[1] = actualStartRatio + 0.3*(actualEndRatio - actualStartRatio)+0.05*(actualEndRatio - actualStartRatio)* Math.random();
+    ramificationRatio[2] = actualStartRatio + 0.35*(actualEndRatio - actualStartRatio)+0.05*(actualEndRatio - actualStartRatio)* Math.random();
+    ramificationRatio[3] = actualStartRatio + 0.4*(actualEndRatio - actualStartRatio)+0.05*(actualEndRatio - actualStartRatio)* Math.random();
+    ramificationRatio[4] = actualStartRatio + 0.45*(actualEndRatio - actualStartRatio)+0.1*(actualEndRatio - actualStartRatio)* Math.random();
+    ramificationRatio[5] = actualStartRatio + 0.55*(actualEndRatio - actualStartRatio)+0.1*(actualEndRatio - actualStartRatio)* Math.random();
+    ramificationRatio[6] = actualStartRatio + 0.65*(actualEndRatio - actualStartRatio)+0.1*(actualEndRatio - actualStartRatio)* Math.random();
 
     return ramificationRatio;
 }
