@@ -7,7 +7,6 @@ function LayerComponentManager(pLayerRule)
     this.m_vComponents=new Array();
     this.prevComponents=new Array();
 
-    this.numResamplePoints=15;
     this.m_minRamificationRatio=0.001;
     this.numComponentOfLayer0=0;
     this.numChildrenPerParent=0;
@@ -18,8 +17,10 @@ function LayerComponentManager(pLayerRule)
         return this;
     }
 
-    this.GenerateComponents=function(numChildrenPerParent,prevComponentManager)
+    this.GenerateComponents=function(numChildrenPerParent,prevComponentManager,numResamplePointsOfLayerN)
     {
+//        var  numResamplePointsOfLayerN=10;
+
         this.numChildrenPerParent=numChildrenPerParent;
         this.prevComponents=prevComponentManager.m_vComponents;
         var prevRule=prevComponentManager.m_pLayerRule;
@@ -79,13 +80,13 @@ function LayerComponentManager(pLayerRule)
 
                 var initRadius=this.prevComponents[i].GetRadius()[0] * radiusRatio;
 
-                var lengthX=this.prevComponents[i].GetCenters()[this.numResamplePoints-1].x-this.prevComponents[i].GetCenters()[0].x;
-                var lengthY=this.prevComponents[i].GetCenters()[this.numResamplePoints-1].y-this.prevComponents[i].GetCenters()[0].y;
-                var lengthZ=this.prevComponents[i].GetCenters()[this.numResamplePoints-1].z-this.prevComponents[i].GetCenters()[0].z;
+                var lengthX=this.prevComponents[i].GetCenters()[getJsonLength(this.prevComponents[i].GetCenters())-1].x-this.prevComponents[i].GetCenters()[0].x;
+                var lengthY=this.prevComponents[i].GetCenters()[getJsonLength(this.prevComponents[i].GetCenters())-1].y-this.prevComponents[i].GetCenters()[0].y;
+                var lengthZ=this.prevComponents[i].GetCenters()[getJsonLength(this.prevComponents[i].GetCenters())-1].z-this.prevComponents[i].GetCenters()[0].z;
                 var length=Math.sqrt(lengthX*lengthX+lengthY*lengthY+lengthZ*lengthZ);
                 var initLength=length*lengthRatio;
 
-                limbComponent=this.GenerateSingleLimb(initRadius, initLength);
+                limbComponent=this.GenerateSingleLimb(initRadius, initLength,numResamplePointsOfLayerN);
                 limbComponent.SetBetaAngle(betaAngle);
 
                 var pathRatios=new Array();
@@ -109,13 +110,29 @@ function LayerComponentManager(pLayerRule)
         }
     }
 
-    this.GenerateComponentsFor0=function(numSamples,initRadius,initLength)
+    this.GenerateComponentsFor0=function(numSamples,initRadius,initLength,numResamplePointsOfLayer0)
     {
+//        var numResamplePointsOfLayer0=10;
         this.numComponentOfLayer0=numSamples;
         for(var i=0;i!=numSamples;i++)
         {
             var limbComponent=new LimbComponent();
-            limbComponent=this.GenerateSingleLimb(initRadius,initLength);
+            limbComponent=this.GenerateSingleLimb(initRadius,initLength, numResamplePointsOfLayer0);
+
+
+//            limbComponent.m_vCenters[0].x=0;
+//            limbComponent.m_vCenters[0].z=0;
+            for(var j=1;j!= numResamplePointsOfLayer0-4;j++)
+            {
+                limbComponent.m_vCenters[j].x=limbComponent.m_vCenters[0].x+(limbComponent.m_vCenters[j].x-limbComponent.m_vCenters[0].x)*0.5;
+                limbComponent.m_vCenters[j].z=limbComponent.m_vCenters[0].z+(limbComponent.m_vCenters[j].z-limbComponent.m_vCenters[0].z)*0.5;
+            }
+/*            for(var j=numResamplePointsOfLayer0-5;j!= numResamplePointsOfLayer0;j++)
+            {
+                limbComponent.m_vCenters[j].x=limbComponent.m_vCenters[j-1].x+(Math.random())*0.2*j;
+                limbComponent.m_vCenters[j].z=limbComponent.m_vCenters[j-1].z+(Math.random())*0.2*j;
+            }*/
+
             limbComponent.SetBetaAngle(0);
             this.m_vComponents[i]=limbComponent;
         }
@@ -256,7 +273,7 @@ function LayerComponentManager(pLayerRule)
         return getJsonLength(numChildByInterval)-1;
     }
 
-    this.GenerateSingleLimb=function(initRadius,initLength)
+    this.GenerateSingleLimb=function(initRadius,initLength,numResamplePoints)
     {
         var limbComponent=new LimbComponent();
 
@@ -265,11 +282,11 @@ function LayerComponentManager(pLayerRule)
         var vAnotherPurturb=Array();
         this.GenerateControlPointsBasedOnStatistics(vRadiusRatio, vGravityPurturb, vAnotherPurturb);
 
-        var vResampleRadius=new Array(this.numResamplePoints);
+        var vResampleRadius=new Array(numResamplePoints);
         vResampleRadius[0]=initRadius;
 
-        var vResampleCenters=new Array(this.numResamplePoints);
-        for(var i=0;i!=this.numResamplePoints;i++)
+        var vResampleCenters=new Array(numResamplePoints);
+        for(var i=0;i!=numResamplePoints;i++)
         {
             vResampleCenters[i]=
             {
@@ -279,16 +296,16 @@ function LayerComponentManager(pLayerRule)
             };
         }
 
-        for (var i = 1; i < this.numResamplePoints; ++i)
+        for (var i = 1; i < numResamplePoints; ++i)
         {
-            var interpRadius=this.InterpolationRadius(vRadiusRatio,i*(getJsonLength(vRadiusRatio)-1)/(this.numResamplePoints-1));
-            var interpGravity=this.InterpolationGravity(vGravityPurturb,i*(getJsonLength(vRadiusRatio)-1)/(this.numResamplePoints-1));
-            var interpAnother=this.InterpolationAnother(vAnotherPurturb,i*(getJsonLength(vRadiusRatio)-1)/(this.numResamplePoints-1));
+            var interpRadius=this.InterpolationRadius(vRadiusRatio,i*(getJsonLength(vRadiusRatio)-1)/(numResamplePoints-1));
+            var interpGravity=this.InterpolationGravity(vGravityPurturb,i*(getJsonLength(vRadiusRatio)-1)/(numResamplePoints-1));
+            var interpAnother=this.InterpolationAnother(vAnotherPurturb,i*(getJsonLength(vRadiusRatio)-1)/(numResamplePoints-1));
 
             var originalPosition=
             {
                 "x":0,
-                "y":i / (this.numResamplePoints - 1) * initLength,
+                "y":i / (numResamplePoints - 1) * initLength,
                 "z":0
             };
 
